@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Método de los Discos</title>  
+  <style>
+    :root{
+      --bg:#2e2e2e;           
+      --card:#3a3a3a;         
+      --accent:#d4af37;       
+      --muted:#c9c9c9;        
+      --glass:rgba(255,255,255,0.05);
+    }
+
+    *{
+      box-sizing:border-box;
+      font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+    }
+
+    body{
+      margin:0;
+      background:linear-gradient(180deg,#2b2b2b 0%, #404040 100%);
+      color:#f3f3f3;
+      padding:20px;
+    }
+
+    .wrap{max-width:1100px;margin:0 auto}
+    header{display:flex;align-items:center;gap:16px}
+    h1{font-size:20px;margin:0;color:#f0f0f0}
+    .grid{display:grid;grid-template-columns:1fr;gap:18px;margin-top:18px}
+    .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], input[type=number]{
+      width:100%;padding:6px;border-radius:8px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:var(--glass);color:inherit;font-size:13px
+    }
+    .btn{
+      display:inline-block;background:var(--accent);color:#1a1a1a;
+      padding:12px 24px;border-radius:8px;border:none;cursor:pointer;
+      font-weight:700;font-size:14px;width:100%
+    }
+
+    canvas{
+      background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent);
+      border-radius:8px;margin-top:10px;width:100%;
+    }
+
+    .result{
+      margin-top:12px;padding:10px;border-radius:8px;
+      background:rgba(255,255,255,0.05);
+      text-align:center;
+    }
+    #volume{display:block;margin-top:4px;font-size:20px;font-weight:bold;color:#ffd966}
+
+    .canvas-row{display:flex;justify-content:space-between;gap:10px;margin-top:15px}
+    .canvas-block{width:49%;text-align:center}
+    .canvas-block h3{margin:0;font-size:14px;color:#f0dba1;text-align:center;margin-bottom:6px}
+    .canvas-row canvas{width:100%;height:260px}
+    small{line-height:1.2;color:#cfcfcf}
+
+    /* Estilo del texto final */
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding: 14px;
+      font-size: 14px;
+      color: #f0dba1;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Método de los Discos — Volumen por revolución</h1>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="flex:2">
+            <label>Función y = f(x)</label>
+            <input id="fn" type="text" value="Math.sin(x)+1" />
+            <small>
+              Ejemplos: x+1 → x+1, x^2 → x*x, x^3 → x*x*x, √x → Math.sqrt(x), sin(x) → Math.sin(x), cos(x) → Math.cos(x), e^x → Math.exp(x)
+            </small>
+          </div>
+          <div style="flex:1">
+            <label>Eje de rotación</label>
+            <input id="axisY" type="number" step="any" value="0" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="flex:1">
+            <label>Límite inferior (a)</label>
+            <input id="a" type="number" step="any" value="0" />
+          </div>
+          <div style="flex:1">
+            <label>Límite superior (b)</label>
+            <input id="b" type="number" step="any" value="6.283185307" />
+          </div>
+          <div style="flex:1">
+            <label>Número de cortes</label>
+            <input id="n" type="number" step="1" min="2" value="80" />
+          </div>
+        </div>
+
+        <button id="compute" class="btn">
+          hola inge, ingrese sus datos y de click en este boton para ahorrarse llenar el pizarron de calculos
+        </button>
+
+        <div class="result" id="resultBox">
+          <div><strong>Volumen (aprox):</strong> <span id="volume">—</span> unidades³</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="canvas-row">
+          <div class="canvas-block">
+            <h3>Gráfica de la función</h3>
+            <canvas id="plot" width="400" height="260"></canvas>
+          </div>
+          <div class="canvas-block">
+            <h3>Discos de revolución</h3>
+            <canvas id="disks" width="400" height="260"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Texto final centrado -->
+    <div class="footer">
+      Código elaborado por el grupo con los siguientes integrantes:<br>
+      <strong>
+        Domenick Montepeque<br>
+        Milton Ruiz<br>
+        Santiago Jax<br>
+        Cristian Navarro<br>
+        Arnoldo Morales
+      </strong>
+    </div>
+  </div>
+
+<script>
+  function makeFunc(expr){
+    try{
+      const fn = new Function('x','with(Math){return ('+expr+')}');
+      fn(0);
+      return fn;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function simpson(f,a,b,n){
+    if(n%2===1) n++;
+    const h = (b-a)/n;
+    let s = f(a)+f(b);
+    for(let i=1;i<n;i++){
+      const x=a+i*h; s += (i%2===0?2:4)*f(x);
+    }
+    return s*(h/3);
+  }
+
+  function plotFunction(canvas, fn, a,b, axisY, nSamples=600){
+    const ctx=canvas.getContext('2d');
+    const W=canvas.width, H=canvas.height;
+    const xs=[]; const ys=[];
+    let ymin=Infinity,ymax=-Infinity;
+    for(let i=0;i<=nSamples;i++){
+      const t = a + (b-a)*(i/nSamples);
+      let y;
+      try{ y = fn(t); if(!isFinite(y)) y=NaN; }catch(e){ y=NaN }
+      xs.push(t); ys.push(y);
+      if(!isNaN(y)){ ymin=Math.min(ymin,y); ymax=Math.max(ymax,y); }
+    }
+    ymin = Math.min(ymin, axisY); ymax = Math.max(ymax, axisY);
+    const padX=40, padY=30;
+    const x2s = x=> padX + ( (x-a)/(b-a) )*(W-2*padX);
+    const y2s = y=> padY + ( (ymax - y)/(ymax - ymin) )*(H-2*padY);
+
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1;
+
+    // Ejes y numeración
+    const nDiv = 5;
+    ctx.fillStyle='#ccc'; ctx.font='10px monospace';
+    for(let gx=0;gx<=nDiv;gx++){
+      const val = a + (b-a)*(gx/nDiv);
+      const px = x2s(val);
+      ctx.beginPath(); ctx.moveTo(px, padY); ctx.lineTo(px, H-padY); ctx.stroke();
+      ctx.fillText(val.toFixed(2), px-10, H-padY+12);
+    }
+    for(let gy=0;gy<=nDiv;gy++){
+      const val = ymin + (ymax-ymin)*(gy/nDiv);
+      const py = y2s(val);
+      ctx.beginPath(); ctx.moveTo(padX, py); ctx.lineTo(W-padX, py); ctx.stroke();
+      ctx.fillText(val.toFixed(2), 5, py+3);
+    }
+
+    // Relleno y curva
+    ctx.beginPath();
+    for(let i=0;i<xs.length;i++){
+      const x = x2s(xs[i]); const y = y2s(ys[i]);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.lineTo(x2s(b), y2s(axisY)); ctx.lineTo(x2s(a), y2s(axisY)); ctx.closePath();
+    ctx.fillStyle='rgba(212,175,55,0.12)'; ctx.fill();
+
+    ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle=varAccent='#d4af37';
+    for(let i=0;i<xs.length;i++){ const x=x2s(xs[i]); const y=y2s(ys[i]); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
+    ctx.stroke();
+
+    // Eje de rotación
+    ctx.beginPath(); ctx.lineWidth=1.2; ctx.strokeStyle='rgba(255,255,255,0.6)';
+    ctx.moveTo(x2s(a), y2s(axisY)); ctx.lineTo(x2s(b), y2s(axisY)); ctx.stroke();
+  }
+
+  function drawDisks(canvas, fn, a,b, axisY, nSlices){
+    const ctx=canvas.getContext('2d'); const W=canvas.width, H=canvas.height; ctx.clearRect(0,0,W,H);
+    const maxR = Math.max(...(function(){const arr=[]; for(let i=0;i<=nSlices;i++){ const x=a + (b-a)*(i/nSlices); try{ const r=Math.abs(fn(x)-axisY); arr.push(isFinite(r)?r:0);}catch(e){arr.push(0);} } return arr; })());
+    const pad=8; const availableW=W-2*pad; const cxStart=pad, step=availableW/nSlices;
+    ctx.fillStyle='#ccc'; ctx.font='10px monospace';
+    for(let i=0;i<nSlices;i++){
+      const x = a + (b-a)*((i+0.5)/nSlices);
+      let r = Math.abs(fn(x)-axisY);
+      if(!isFinite(r)) r=0;
+      const R = (r/maxR) * (H-2*pad)/2;
+      const cx = pad + i*step + step/2;
+      const cy = H/2;
+      ctx.beginPath(); ctx.globalAlpha=0.18; ctx.fillStyle='#d4af37'; ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.globalAlpha=1; ctx.strokeStyle='rgba(212,175,55,0.6)'; ctx.lineWidth=1; ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
+    }
+    // Ejes de referencia
+    ctx.strokeStyle='rgba(255,255,255,0.2)';
+    for(let gx=0;gx<=5;gx++){
+      const px = gx*(W/5);
+      ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,H); ctx.stroke();
+      ctx.fillText((a+(b-a)*gx/5).toFixed(2), px+5, H-5);
+    }
+  }
+
+  document.getElementById('compute').addEventListener('click', ()=>{
+    const expr = document.getElementById('fn').value.trim();
+    const a = parseFloat(document.getElementById('a').value);
+    const b = parseFloat(document.getElementById('b').value);
+    const axisY = parseFloat(document.getElementById('axisY').value);
+    let n = parseInt(document.getElementById('n').value);
+    if(isNaN(a)||isNaN(b)||a===b){ alert('Ingresa límites válidos: a y b distintos'); return; }
+    if(isNaN(n) || n<2) n=80;
+    const fn = makeFunc(expr);
+    if(!fn){ alert('Expresión inválida. Usa sintaxis JavaScript y funciones Math. Ej: x*x + 2*Math.sin(x)'); return; }
+
+    const ff = x => {
+      let y = fn(x);
+      if(!isFinite(y)) return 0;
+      return Math.pow(Math.abs(y - axisY),2);
+    };
+
+    let integral;
+    try{
+      if(n%2===0) integral = simpson(ff,a,b,n);
+      else integral = simpson(ff,a,b,n+1);
+    }catch(e){ alert('Error durante integración: '+e); return; }
+
+    const volume = Math.PI * integral;
+    document.getElementById('volume').textContent = volume.toFixed(2);
+
+    plotFunction(document.getElementById('plot'), fn, a,b, axisY);
+    drawDisks(document.getElementById('disks'), fn, a,b, axisY, Math.min(120, n));
+  });
+
+  document.getElementById('compute').click();
+</script>
+</body>
+</html>
