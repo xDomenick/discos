@@ -1,0 +1,2 @@
+# discos
+Metodo de Discos
